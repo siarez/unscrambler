@@ -23,11 +23,12 @@ def compute_pos(dist, dim=2):
 """Test position calculator"""
 points = np.arange(0, 20).reshape((10, 2))
 points += np.random.randint(0, 5, (10, 2))
-points = np.array([[0, 0], [0, 20], [20, 0], [20, 20]])
+points = np.array([[0, 0], [0, 20], [10, 0], [10, 20], [20, 0], [20, 20]])
 #points = np.random.randint(0, 20, (10, 2))
 test_dists = squareform(pdist(points))
 positions = np.real(compute_pos(test_dists))
-
+#remove nan columns
+positions = positions[:,~np.all(np.isnan(positions), axis=0)]
 std_in_pos = np.nanstd(positions, 0)
 sort_index = np.argsort(std_in_pos)[-2:]
 

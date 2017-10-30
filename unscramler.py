@@ -33,7 +33,7 @@ def calc_dist(data):
     #return np.power(1 - np.abs(np.corrcoef(data, rowvar=True)), 2)
     #return 1 - np.abs(np.corrcoef(data, rowvar=True))
     #return 1 - np.maximum(np.corrcoef(data, rowvar=True), 0)
-    #return 1 - np.exp(1 - np.abs(np.corrcoef(data, rowvar=True)))
+    #return np.exp(1 - np.abs(np.corrcoef(data, rowvar=True))) - 1
 
 
 def compute_pos(dist, dim=2):
@@ -53,8 +53,33 @@ def compute_pos(dist, dim=2):
 picked_images = picked_images.transpose()
 dist_mat = calc_dist(picked_images)
 positions = np.real(compute_pos(dist_mat))
-std_in_pos = np.nanstd(positions[:, 0:4], 0)
+positions = positions[:,~np.all(np.isnan(positions), axis=0)]
+std_in_pos = np.nanstd(positions[:, 0:100], 0)
 sort_index = np.argsort(std_in_pos)[-2:]
+
+# create test image
+test_image = np.arange(0, 255, 255/image_dim**2).astype(np.float)/255
+diag_line = np.ones((image_dim, image_dim))
+np.fill_diagonal(diag_line, 0)
+test_image *= diag_line.flat
+
+# create scrambling scheme and scrambling the data
+scrambling_order = np.random.permutation(image_dim**2)
+picked_images_scrm = picked_images[scrambling_order, :]
+test_image_scrm = test_image[scrambling_order]
+
+dist_mat_scrm = calc_dist(picked_images_scrm)
+positions_scrm = np.real(compute_pos(dist_mat_scrm))
+positions_scrm = positions_scrm[:,~np.all(np.isnan(positions_scrm), axis=0)]
+std_in_pos_scrm = np.nanstd(positions_scrm[:, 0:100], 0)
+sort_index_scrm = np.argsort(std_in_pos_scrm)[-2:]
+
+f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, sharey=False)
+ax1.imshow(test_image.reshape(image_dim, image_dim))
+ax2.scatter(positions[:, sort_index[0]], positions[:, sort_index[1]], s=8, c=test_image)
+ax3.imshow(test_image_scrm.reshape(image_dim, image_dim))
+ax4.scatter(positions_scrm[:, sort_index_scrm[0]], positions_scrm[:, sort_index_scrm[1]], s=8, c=test_image_scrm)
+plt.show()
 
 
 """
@@ -66,23 +91,3 @@ plt.xlim([0, N])
 plt.ylim([0, N])
 #plt.show()
 """
-
-test_image = np.arange(0, 255, 255/image_dim**2).astype(np.float)/255
-diag_line = np.ones((image_dim, image_dim))
-np.fill_diagonal(diag_line, 0)
-test_image *= diag_line.flat
-scrambling_order = np.random.permutation(image_dim**2)
-picked_images_scrambled = picked_images[scrambling_order, :]
-test_image_scrambled = test_image[scrambling_order]
-
-dist_mat_scrambled = calc_dist(picked_images_scrambled)
-positions_scrambled = np.real(compute_pos(dist_mat_scrambled))
-std_in_pos_scrambled = np.nanstd(positions[:, 0:4], 0)
-sort_index_scrambled = np.argsort(std_in_pos)[-2:]
-
-f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, sharey=False)
-ax1.imshow(test_image.reshape(image_dim, image_dim))
-ax2.scatter(positions[:, sort_index[0]], positions[:, sort_index[1]], s=8, c=test_image)
-ax3.imshow(test_image_scrambled.reshape(image_dim, image_dim))
-ax4.scatter(positions_scrambled[:, sort_index[0]], positions[:, sort_index[1]], s=8, c=test_image_scrambled)
-plt.show()
