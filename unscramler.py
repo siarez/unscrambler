@@ -3,6 +3,7 @@ from scipy.spatial.distance import pdist, squareform
 #from sklearn.datasets import fetch_mldata
 from sklearn import datasets
 from fastcluster import linkage
+from sklearn.metrics.pairwise import euclidean_distances
 
 import matplotlib.pyplot as plt
 
@@ -10,8 +11,8 @@ mnist = datasets.fetch_mldata('MNIST original', data_home='./')
 images = mnist.data
 # pick to random images
 indices = np.random.choice(len(images), 5000, replace=False)
-picked_images = np.array([images[i] for i in indices]).astype(np.float)/255
-test_image = np.array(images[10000]).astype(np.float)/255
+picked_images = np.array([images[i] for i in indices]).astype(np.double)/255
+test_image = np.array(images[20000]).astype(np.float)/255
 image_noise = np.random.randn(*picked_images.shape) / 1000
 picked_images += image_noise
 
@@ -19,17 +20,51 @@ iris = datasets.load_iris()
 
 
 def calc_dist(data):
-    # return squareform(pdist(data))
-    return 1 - np.corrcoef(data, rowvar=True)
+    #return squareform(pdist(data))
+    return 1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)
+    #return np.abs(np.cov(data, rowvar=True)) * 255
+
+
+def compute_pos(dist, dim=2):
+    """
+    This function computes the positions of points in space from their distance matrix.
+    :param dist: is a square distance matrix
+    :param dim: dimention of the coord system
+    :return: returns points coordinates
+    """
+    d1j2 = np.expand_dims(np.square(dist[1, :]), 0)
+    di12 = np.expand_dims(np.square(dist[:, 1]), 1)
+    dij2 = np.square(dist)
+    M = (d1j2 + di12 - dij2)/2
+    S, U = np.linalg.eig(M)
+    return S * np.sqrt(U)
+
+
+
+
+
 
 iris.data = picked_images.transpose()
 print(iris.data.shape)
 dist_mat = calc_dist(iris.data)
+positions = compute_pos(dist_mat)
+variation_in_pos = np.nanmax(positions, 0) - np.nanmin(positions, 0)
+std_in_pos = np.nanstd(positions, 0)
+sort_index = np.argsort(std_in_pos)[-2:]
+
+fig = plt.figure()
+plt.subplot(211)
+plt.imshow(test_image.reshape(28, 28))
+plt.subplot(212)
+plt.scatter(positions[:, sort_index[0]], positions[:, sort_index[1]], c=test_image, cmap="Blues")
+#plt.ylim([750000, 850000])
+plt.show()
+
 N = len(iris.data)
 plt.pcolormesh(dist_mat)
 plt.colorbar()
-plt.xlim([0,N])
-plt.ylim([0,N])
+plt.xlim([0, N])
+plt.ylim([0, N])
 #plt.show()
 
 
@@ -116,5 +151,4 @@ unscrambled_img = scrambled_img[res_order]
 plt.subplot(313)
 plt.imshow(unscrambled_img.reshape(28, 28))
 
-plt.subplot_tool()
 plt.show()
