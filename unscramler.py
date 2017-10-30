@@ -38,10 +38,20 @@ def calc_dist(data):
 def compute_pos(dist, dim=2):
     """
     This function computes the positions of points in space from their distance matrix.
+    https://math.stackexchange.com/questions/156161/finding-the-coordinates-of-points-from-distance-matrix
+    http://www.galileoco.com/literature/OCRyoungHouseholder38.pdf
     :param dist: is a square distance matrix
     :param dim: dimention of the coord system
     :return: returns points coordinates
     """
+    # ToDo: read on eigenvalue constraints and threasholding
+    # http: // www.galileoco.com / literature / OCRyoungHouseholder38.pdf
+    # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4303596/
+    # https://dl.acm.org/citation.cfm?id=2398462
+    # https://www.stat.berkeley.edu/~bickel/BL2008Aos-thresholding.pdf
+    # use tSNE to project higher dimensions down to 2. http://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
+
+
     d1j2 = np.expand_dims(np.square(dist[0, :]), 0)
     di12 = np.expand_dims(np.square(dist[:, 0]), 1)
     dij2 = np.square(dist)

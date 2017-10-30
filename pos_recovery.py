@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 def compute_pos(dist, dim=2):
     """
     This function computes the positions of points in space from their distance matrix.
+    https://math.stackexchange.com/questions/156161/finding-the-coordinates-of-points-from-distance-matrix
     :param dist: is a square distance matrix
     :param dim: dimention of the coord system
     :return: returns points coordinates
