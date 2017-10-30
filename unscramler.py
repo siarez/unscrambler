@@ -23,18 +23,20 @@ mnist = datasets.fetch_mldata('MNIST original', data_home='./')
 #images = mnist.data
 images = cifar_grey
 image_dim = int(np.sqrt(len(images[0])))
+num_of_images = 5000
 
 # pick to random images
-indices = np.random.choice(len(images), 5000, replace=False)
+indices = np.random.choice(len(images), num_of_images, replace=False)
 picked_images = np.array([images[i] for i in indices]).astype(np.double)/255
 
 def calc_dist(data):
-    return 1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)
+    #return 1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)
     #return np.power(1 - np.abs(np.corrcoef(data, rowvar=True)), 2)
-    #return 1 - np.abs(np.corrcoef(data, rowvar=True))
+    return 1 - np.abs(np.corrcoef(data, rowvar=True))
+    #return 1 - np.corrcoef(data, rowvar=True)
     #return 1 - np.maximum(np.corrcoef(data, rowvar=True), 0)
     #return np.exp(1 - np.abs(np.corrcoef(data, rowvar=True))) - 1
-
+    #return np.exp(1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)) - 1
 
 def compute_pos(dist, dim=2):
     """
@@ -50,18 +52,62 @@ def compute_pos(dist, dim=2):
     S, U = np.linalg.eig(M)
     return U * np.sqrt(S)
 
+def create_disk_noise(a, b, n, num):
+    """
+    :param a: position
+    :param b: position
+    :param n: size
+    :param num: number of images
+    :return: 2D square array/image
+    """
+    y, x = np.ogrid[-a:n - a, -b:n - b]
+    noise_coef = x * x + y * y
+    noise = np.expand_dims(noise_coef, 2) * np.random.randn(n, n, num) / (n**2 / 2)
+    return noise
+
+def create_disk_image(a, b, n, r):
+    """
+    :param a: position
+    :param b: position
+    :param n: size
+    :param r: radius
+    :return: 2D square array/image
+    """
+    y, x = np.ogrid[-a:n - a, -b:n - b]
+    mask = x * x + y * y <= r * r
+    array = np.ones((n, n))
+    array[mask] = 0
+    return array
+
+def create_test_image(dim):
+    """
+    Creates a square image that is useful for visual inspection of unscrambler performance.
+
+    :param dim: dimension of image
+    :return: 2D array of size (dim dim)
+    """
+    image = np.arange(0, 1, 1 / dim ** 2).astype(np.float)
+    diag_line = np.ones((dim, dim))
+    np.fill_diagonal(diag_line, 0)
+    image *= diag_line.flat
+    image *= np.flipud(np.fliplr(np.tri(dim, k=18))).flat
+    image *= create_disk_image(16, 16, dim, 5).flat
+    return image
+
 picked_images = picked_images.transpose()
+#picked_images += np.reshape(create_disk_noise(16, 16, 32, num_of_images), (image_dim**2, -1))
+
 dist_mat = calc_dist(picked_images)
 positions = np.real(compute_pos(dist_mat))
 positions = positions[:,~np.all(np.isnan(positions), axis=0)]
 std_in_pos = np.nanstd(positions[:, 0:100], 0)
 sort_index = np.argsort(std_in_pos)[-2:]
 
+plt.hist(dist_mat.flat, 51)
+plt.show()
+
 # create test image
-test_image = np.arange(0, 255, 255/image_dim**2).astype(np.float)/255
-diag_line = np.ones((image_dim, image_dim))
-np.fill_diagonal(diag_line, 0)
-test_image *= diag_line.flat
+test_image = create_test_image(image_dim)
 
 # create scrambling scheme and scrambling the data
 scrambling_order = np.random.permutation(image_dim**2)
