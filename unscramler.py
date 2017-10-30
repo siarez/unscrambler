@@ -1,8 +1,5 @@
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
-#from sklearn.datasets import fetch_mldata
 from sklearn import datasets
-from fastcluster import linkage
 import matplotlib.pyplot as plt
 import pickle
 
