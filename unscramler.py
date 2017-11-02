@@ -19,10 +19,10 @@ cifar_grey = np.mean(channels, 0)
 """Get MNIST"""
 mnist = datasets.fetch_mldata('MNIST original', data_home='./')
 
-images = mnist.data
-#images = cifar_grey
+#images = mnist.data
+images = cifar_grey
 image_dim = int(np.sqrt(len(images[0])))
-num_of_images = 20000
+num_of_images = 2000
 
 # pick to random images
 indices = np.random.choice(len(images), num_of_images, replace=False)
@@ -147,6 +147,19 @@ def create_test_image(dim):
     return image
 
 picked_images = picked_images.transpose()
+# Corner occlusion: sets the corner of all images to zero. Causing the algorithm to cut the out.
+picked_images *= np.reshape(np.flipud(np.tri(image_dim, k=18)), (image_dim**2, 1))
+
+# make pixels zero in a checkerboard fashion
+checkerboard = np.zeros((image_dim, image_dim),dtype=int)
+checkerboard[1::2, ::2] = 1
+checkerboard[::2, 1::2] = 1
+picked_images *= np.reshape(checkerboard, (image_dim**2, 1))
+
+# disk occlusion:
+picked_images *= np.reshape(create_disk_image(image_dim/2, image_dim/2, image_dim, 5), (image_dim**2, 1))
+
+# Adding noise
 #picked_images += np.reshape(create_disk_noise(image_dim/2, image_dim/2, image_dim, num_of_images), (image_dim**2, -1))
 #picked_images += np.reshape(create_noisy_img(image_dim, num_of_images), (image_dim**2, num_of_images))
 
