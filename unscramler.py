@@ -3,6 +3,7 @@ from sklearn import datasets
 import matplotlib.pyplot as plt
 import pickle
 from sklearn.manifold import TSNE, LocallyLinearEmbedding
+from scipy import signal
 
 def unpickle(file):
     with open(file, 'rb') as fo:
@@ -18,23 +19,36 @@ cifar_grey = np.mean(channels, 0)
 """Get MNIST"""
 mnist = datasets.fetch_mldata('MNIST original', data_home='./')
 
-#images = mnist.data
-images = cifar_grey
+images = mnist.data
+#images = cifar_grey
 image_dim = int(np.sqrt(len(images[0])))
-num_of_images = 5000
+num_of_images = 20000
 
 # pick to random images
 indices = np.random.choice(len(images), num_of_images, replace=False)
-picked_images = np.array([images[i] for i in indices]).astype(np.double)/255
+picked_images = np.array([images[i] for i in indices]).astype(np.double)/(255)
 
 def calc_dist(data):
-    #return 1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)
-    #return np.power(1 - np.abs(np.corrcoef(data, rowvar=True)), 2)
-    return 1 - np.abs(np.corrcoef(data, rowvar=True))
-    #return 1 - np.corrcoef(data, rowvar=True)
-    #return 1 - np.maximum(np.corrcoef(data, rowvar=True), 0)
-    #return np.exp(1 - np.abs(np.corrcoef(data, rowvar=True))) - 1
-    #return np.exp(1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)) - 1
+
+    #dist = 1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)
+    #dist = np.power(1 - np.abs(np.corrcoef(data, rowvar=True)), 2)
+    dist = 1 - np.abs(np.corrcoef(data, rowvar=True))
+    #dist = 1 - np.corrcoef(data, rowvar=True)
+    #dist = 1 - np.maximum(np.corrcoef(data, rowvar=True), 0)
+    #dist = np.exp(1 - np.abs(np.corrcoef(data, rowvar=True))) - 1
+    #dist = np.exp(1 - np.power(np.abs(np.corrcoef(data, rowvar=True)), 2)) - 1
+
+    pixel_var = np.var(data, 1)
+    var_i = np.expand_dims(pixel_var, 0)
+    var_j = np.expand_dims(pixel_var, 1)
+    pixel_cov = np.cov(data, rowvar=True)
+    #dist = np.sqrt( np.maximum(var_i + var_j - 2 * pixel_cov, 0))
+
+    # eliminating pixels with nan distance. These are pixels who have not changed across all images. That is std = 0
+    eleminated_pixel_idx = np.all(np.isnan(dist), axis=0)
+    dist = dist[:, ~np.all(np.isnan(dist), axis=0)]
+    dist = dist[~np.all(np.isnan(dist), axis=1), :]
+    return dist, eleminated_pixel_idx
 
 def compute_pos(dist, dim=2):
     """
@@ -70,8 +84,38 @@ def create_disk_noise(a, b, n, num):
     """
     y, x = np.ogrid[-a:n - a, -b:n - b]
     noise_coef = x * x + y * y
-    noise = np.expand_dims(noise_coef, 2) * np.random.randn(n, n, num) / (n**2 / 2)
+    noise = np.expand_dims(noise_coef, 2) * np.random.randn(n, n, num) / (n**2 * 100)
     return noise
+
+def create_noisy_img(n, num):
+    """
+    :param n: size
+    :param num: number of images
+    :return: 2D square array/image
+    """
+    # creating kernel
+    kernel_dim = 9
+
+    # creating a center heavy kernel
+    y, x = np.ogrid[-kernel_dim/2:kernel_dim/2, -kernel_dim/2:kernel_dim/2]
+    x += 0.5
+    y += 0.5
+    conv_kernel2 = x * x + y * y
+    conv_kernel2 = 1 / (conv_kernel2 + 1)
+    conv_kernel2 /= np.sum(conv_kernel2)
+
+    # creating a uniform kernel
+    conv_kernel = np.ones((kernel_dim, kernel_dim))/(kernel_dim**2)
+
+    # creating noisy images
+    noise = np.random.rand(n, n, num) * 4
+    # running the kernel over each noisy image
+    convolved_imgs = []
+    for i in range(noise.shape[-1]):
+        convolved_imgs.append(signal.convolve2d(noise[..., i], conv_kernel2, boundary='symm', mode='same'))
+    convolved_imgs = np.array(convolved_imgs)
+    convolved_imgs = np.rollaxis(convolved_imgs, 0, 3)
+    return convolved_imgs
 
 def create_disk_image(a, b, n, r):
     """
@@ -94,18 +138,19 @@ def create_test_image(dim):
     :param dim: dimension of image
     :return: 2D array of size (dim dim)
     """
-    image = np.arange(0, 1, 1 / dim ** 2).astype(np.float)
+    image = np.arange(0, 1, 1 / (dim ** 2 - 0.5)).astype(np.float)
     diag_line = np.ones((dim, dim))
     np.fill_diagonal(diag_line, 0)
     image *= diag_line.flat
     image *= np.flipud(np.fliplr(np.tri(dim, k=18))).flat
-    image *= create_disk_image(16, 16, dim, 5).flat
+    image *= create_disk_image(dim/2, dim/2, dim, 5).flat
     return image
 
 picked_images = picked_images.transpose()
-#picked_images += np.reshape(create_disk_noise(16, 16, 32, num_of_images), (image_dim**2, -1))
+#picked_images += np.reshape(create_disk_noise(image_dim/2, image_dim/2, image_dim, num_of_images), (image_dim**2, -1))
+#picked_images += np.reshape(create_noisy_img(image_dim, num_of_images), (image_dim**2, num_of_images))
 
-dist_mat = calc_dist(picked_images)
+dist_mat, bad_pixel_idx = calc_dist(picked_images)
 positions = np.real(compute_pos(dist_mat))
 positions = positions[:, ~np.all(np.isnan(positions), axis=0)]
 std_in_pos = np.nanstd(positions[:, 0:100], 0)
@@ -125,7 +170,7 @@ scrambling_order = np.random.permutation(image_dim**2)
 picked_images_scrm = picked_images[scrambling_order, :]
 test_image_scrm = test_image[scrambling_order]
 
-dist_mat_scrm = calc_dist(picked_images_scrm)
+dist_mat_scrm, bad_pixel_idx_scrm = calc_dist(picked_images_scrm)
 positions_scrm = np.real(compute_pos(dist_mat_scrm))
 positions_scrm = positions_scrm[:, ~np.all(np.isnan(positions_scrm), axis=0)]
 std_in_pos_scrm = np.nanstd(positions_scrm[:, 0:100], 0)
@@ -136,11 +181,11 @@ positions_scrm_embd = TSNE(n_components=2, verbose=True, metric="precomputed", p
 
 f, ((ax1, ax2, ax_tnse1), (ax3, ax4, ax_tnse2)) = plt.subplots(2, 3, sharey=False)
 ax1.imshow(test_image.reshape(image_dim, image_dim))
-ax2.scatter(positions[:, sort_index[-1:]], positions[:, sort_index[-2:-1]], s=8, c=test_image)
-ax_tnse1.scatter(positions_embd[:, 0], positions_embd[:, 1], s=8, c=test_image)
+ax2.scatter(positions[:, sort_index[-1:]], positions[:, sort_index[-2:-1]], s=8, c=test_image[~bad_pixel_idx])
+ax_tnse1.scatter(positions_embd[:, 0], positions_embd[:, 1], s=8, c=test_image[~bad_pixel_idx])
 ax3.imshow(test_image_scrm.reshape(image_dim, image_dim))
-ax4.scatter(positions_scrm[:, sort_index_scrm[-1:]], positions_scrm[:, sort_index_scrm[-2:-1]], s=8, c=test_image_scrm)
-ax_tnse2.scatter(positions_scrm_embd[:, 0], positions_scrm_embd[:, 1], s=8, c=test_image_scrm)
+ax4.scatter(positions_scrm[:, sort_index_scrm[-1:]], positions_scrm[:, sort_index_scrm[-2:-1]], s=8, c=test_image_scrm[~bad_pixel_idx_scrm])
+ax_tnse2.scatter(positions_scrm_embd[:, 0], positions_scrm_embd[:, 1], s=8, c=test_image_scrm[~bad_pixel_idx_scrm])
 plt.show()
 
 
