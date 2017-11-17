@@ -3,7 +3,10 @@ from sklearn import datasets
 import matplotlib.pyplot as plt
 import pickle
 from sklearn.manifold import TSNE, LocallyLinearEmbedding
+from scipy.spatial.distance import pdist, squareform
 from scipy import signal
+import skvideo.io
+
 
 def unpickle(file):
     with open(file, 'rb') as fo:
@@ -18,11 +21,20 @@ channels = np.array(np.split(images, 3, 1))
 cifar_grey = np.mean(channels, 0)
 """Get MNIST"""
 mnist = datasets.fetch_mldata('MNIST original', data_home='./')
+"""Load video"""
+wgl = skvideo.io.vread("wiggling_1.3gp")
+wgl = np.squeeze(wgl[:, 0:90:2, 15:105:2, 1])
+wgl = np.reshape(wgl, (wgl.shape[0], wgl.shape[1] * wgl.shape[2])).astype(np.float)
+
 
 #images = mnist.data
-images = cifar_grey
+#images = cifar_grey
+images = wgl
 image_dim = int(np.sqrt(len(images[0])))
-num_of_images = 2000
+num_of_images = 98
+
+# making the random numbers predictable!
+np.random.seed(40)
 
 # pick to random images
 indices = np.random.choice(len(images), num_of_images, replace=False)
@@ -148,16 +160,16 @@ def create_test_image(dim):
 
 picked_images = picked_images.transpose()
 # Corner occlusion: sets the corner of all images to zero. Causing the algorithm to cut the out.
-picked_images *= np.reshape(np.flipud(np.tri(image_dim, k=18)), (image_dim**2, 1))
+#picked_images *= np.reshape(np.flipud(np.tri(image_dim, k=18)), (image_dim**2, 1))
 
 # make pixels zero in a checkerboard fashion
 checkerboard = np.zeros((image_dim, image_dim),dtype=int)
 checkerboard[1::2, ::2] = 1
 checkerboard[::2, 1::2] = 1
-picked_images *= np.reshape(checkerboard, (image_dim**2, 1))
+#picked_images *= np.reshape(checkerboard, (image_dim**2, 1))
 
 # disk occlusion:
-picked_images *= np.reshape(create_disk_image(image_dim/2, image_dim/2, image_dim, 5), (image_dim**2, 1))
+#picked_images *= np.reshape(create_disk_image(image_dim/2, image_dim/2, image_dim, 4), (image_dim**2, 1))
 
 # Adding noise
 #picked_images += np.reshape(create_disk_noise(image_dim/2, image_dim/2, image_dim, num_of_images), (image_dim**2, -1))
@@ -169,8 +181,9 @@ positions = positions[:, ~np.all(np.isnan(positions), axis=0)]
 std_in_pos = np.nanstd(positions[:, 0:100], 0)
 sort_index = np.argsort(std_in_pos)[-20:]
 positions_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300).fit_transform(dist_mat)
-#positions_embd = LocallyLinearEmbedding(n_neighbors=120, n_components=2, method="modified").fit_transform(positions[:, sort_index])
+embedding_dist = squareform(pdist(positions_embd))
 
+#positions_embd = LocallyLinearEmbedding(n_neighbors=120, n_components=2, method="modified").fit_transform(positions[:, sort_index])
 
 #plt.hist(dist_mat.flat, 51)
 #plt.show()
@@ -178,10 +191,25 @@ positions_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perple
 # create test image
 test_image = create_test_image(image_dim)
 
+def plot_3d():
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure()
+    ax3D = fig.add_subplot(111, projection='3d')
+    ax3D.scatter(positions_embd[:, 0], positions_embd[:, 1], positions_embd[:, 2], s=8, c=test_image[~bad_pixel_idx])
+    plt.show()
+
+#plot_3d()
+
+
 # create scrambling scheme and scrambling the data
+
 scrambling_order = np.random.permutation(image_dim**2)
 picked_images_scrm = picked_images[scrambling_order, :]
 test_image_scrm = test_image[scrambling_order]
+
+
+
+
 
 dist_mat_scrm, bad_pixel_idx_scrm = calc_dist(picked_images_scrm)
 positions_scrm = np.real(compute_pos(dist_mat_scrm))
@@ -190,6 +218,7 @@ std_in_pos_scrm = np.nanstd(positions_scrm[:, 0:100], 0)
 sort_index_scrm = np.argsort(std_in_pos_scrm)[-20:]
 #positions_scrm_embd = TSNE(n_components=2, verbose=True).fit_transform(positions_scrm[:, sort_index_scrm])
 positions_scrm_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300).fit_transform(dist_mat_scrm)
+
 
 
 f, ((ax1, ax2, ax_tnse1), (ax3, ax4, ax_tnse2)) = plt.subplots(2, 3, sharey=False)
