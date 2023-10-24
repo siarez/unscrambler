@@ -5,8 +5,8 @@ import pickle
 from sklearn.manifold import TSNE, LocallyLinearEmbedding
 from scipy.spatial.distance import pdist, squareform
 from scipy import signal
-import skvideo.io
-
+# import skvideo.io
+from openTSNE import oTSNE
 
 def unpickle(file):
     with open(file, 'rb') as fo:
@@ -19,19 +19,19 @@ data = unpickle(file_path)
 images = np.array(data[b'data'])
 channels = np.array(np.split(images, 3, 1))
 cifar_grey = np.mean(channels, 0)
-"""Get MNIST"""
-mnist = datasets.fetch_mldata('MNIST original', data_home='./')
-"""Load video"""
-wgl = skvideo.io.vread("wiggling_1.3gp")
-wgl = np.squeeze(wgl[:, 0:90:2, 15:105:2, 1])
-wgl = np.reshape(wgl, (wgl.shape[0], wgl.shape[1] * wgl.shape[2])).astype(np.float)
+# """Get MNIST"""
+# mnist = datasets.fetch_mldata('MNIST original', data_home='./')
+# """Load video"""
+# wgl = skvideo.io.vread("wiggling_1.3gp")
+# wgl = np.squeeze(wgl[:, 0:90:2, 15:105:2, 1])
+# wgl = np.reshape(wgl, (wgl.shape[0], wgl.shape[1] * wgl.shape[2])).astype(np.float)
 
 
 #images = mnist.data
-#images = cifar_grey
-images = wgl
+images = cifar_grey
+#images = wgl
 image_dim = int(np.sqrt(len(images[0])))
-num_of_images = 98
+num_of_images = 1000
 
 # making the random numbers predictable!
 np.random.seed(40)
@@ -150,7 +150,7 @@ def create_test_image(dim):
     :param dim: dimension of image
     :return: 2D array of size (dim dim)
     """
-    image = np.arange(0, 1, 1 / (dim ** 2 - 0.5)).astype(np.float)
+    image = np.arange(0, 1, 1 / (dim ** 2 - 0.5)).astype(np.float32)
     diag_line = np.ones((dim, dim))
     np.fill_diagonal(diag_line, 0)
     image *= diag_line.flat
@@ -160,16 +160,16 @@ def create_test_image(dim):
 
 picked_images = picked_images.transpose()
 # Corner occlusion: sets the corner of all images to zero. Causing the algorithm to cut the out.
-#picked_images *= np.reshape(np.flipud(np.tri(image_dim, k=18)), (image_dim**2, 1))
+picked_images *= np.reshape(np.flipud(np.tri(image_dim, k=18)), (image_dim**2, 1))
 
 # make pixels zero in a checkerboard fashion
 checkerboard = np.zeros((image_dim, image_dim),dtype=int)
 checkerboard[1::2, ::2] = 1
 checkerboard[::2, 1::2] = 1
-#picked_images *= np.reshape(checkerboard, (image_dim**2, 1))
+# picked_images *= np.reshape(checkerboard, (image_dim**2, 1))
 
 # disk occlusion:
-#picked_images *= np.reshape(create_disk_image(image_dim/2, image_dim/2, image_dim, 4), (image_dim**2, 1))
+# picked_images *= np.reshape(create_disk_image(image_dim/2, image_dim/2, image_dim, 4), (image_dim**2, 1))
 
 # Adding noise
 #picked_images += np.reshape(create_disk_noise(image_dim/2, image_dim/2, image_dim, num_of_images), (image_dim**2, -1))
@@ -180,7 +180,7 @@ positions = np.real(compute_pos(dist_mat))
 positions = positions[:, ~np.all(np.isnan(positions), axis=0)]
 std_in_pos = np.nanstd(positions[:, 0:100], 0)
 sort_index = np.argsort(std_in_pos)[-20:]
-positions_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300).fit_transform(dist_mat)
+positions_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300, init="random").fit_transform(dist_mat)
 embedding_dist = squareform(pdist(positions_embd))
 
 #positions_embd = LocallyLinearEmbedding(n_neighbors=120, n_components=2, method="modified").fit_transform(positions[:, sort_index])
@@ -198,7 +198,7 @@ def plot_3d():
     ax3D.scatter(positions_embd[:, 0], positions_embd[:, 1], positions_embd[:, 2], s=8, c=test_image[~bad_pixel_idx])
     plt.show()
 
-#plot_3d()
+# plot_3d()
 
 
 # create scrambling scheme and scrambling the data
@@ -217,7 +217,7 @@ positions_scrm = positions_scrm[:, ~np.all(np.isnan(positions_scrm), axis=0)]
 std_in_pos_scrm = np.nanstd(positions_scrm[:, 0:100], 0)
 sort_index_scrm = np.argsort(std_in_pos_scrm)[-20:]
 #positions_scrm_embd = TSNE(n_components=2, verbose=True).fit_transform(positions_scrm[:, sort_index_scrm])
-positions_scrm_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300).fit_transform(dist_mat_scrm)
+positions_scrm_embd = TSNE(n_components=2, verbose=True, metric="precomputed", perplexity=24.0, n_iter=300, init="random").fit_transform(dist_mat_scrm)
 
 
 
@@ -229,14 +229,3 @@ ax3.imshow(test_image_scrm.reshape(image_dim, image_dim))
 ax4.scatter(positions_scrm[:, sort_index_scrm[-1:]], positions_scrm[:, sort_index_scrm[-2:-1]], s=8, c=test_image_scrm[~bad_pixel_idx_scrm])
 ax_tnse2.scatter(positions_scrm_embd[:, 0], positions_scrm_embd[:, 1], s=8, c=test_image_scrm[~bad_pixel_idx_scrm])
 plt.show()
-
-
-"""
-#
-N = len(iris.data)
-plt.pcolormesh(dist_mat)
-plt.colorbar()
-plt.xlim([0, N])
-plt.ylim([0, N])
-#plt.show()
-"""
